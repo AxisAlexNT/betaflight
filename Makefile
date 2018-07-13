@@ -16,7 +16,7 @@
 #
 
 # The target to build, see VALID_TARGETS below
-TARGET    ?= XELOND405
+TARGET    ?= XELONF405
 
 # Compile-time options
 OPTIONS   ?= Ofast

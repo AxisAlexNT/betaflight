@@ -50,54 +50,54 @@ static bool rcFrameComplete = false;
 
 typedef enum
 {
-    stperr,
-    start1,
-    start2,
-    getlen,
-    getcmd,
-    getval
+    none,
+    recv_cmd,
+    error
 } rxProtoState;
+
+typedef enum
+{
+    ch_set,
+    get_len,
+    data_byte,
+    fin_even_byte,
+    fin_odd_byte
+} command_types;
 
 
 static rxProtoState rxState;
+static command_types current_cmd;
 
-static void routeIncommingPacket() //syslinkPacket_t* slp)
-{
-            // case CRTP_PORT_SETPOINT_GENERIC:
-            //     // First byte of the packet is the type
-            //     // Only support the CPPM Emulation type
-            //     if (crtpPacket->data[0] == cppmEmuType) {
-            //         crtpCommanderCPPMEmuPacket_t *crtpCppmPacket =
-            //                 (crtpCommanderCPPMEmuPacket_t*)&crtpPacket->data[1];
 
-            //         // Write RPYT channels in TAER order
-            //         channelData[0] = crtpCppmPacket->channelThrust;
-            //         channelData[1] = crtpCppmPacket->channelRoll;
-            //         channelData[2] = crtpCppmPacket->channelPitch;
-            //         channelData[3] = crtpCppmPacket->channelYaw;
+static uint8_t cmd = 0;
+static uint8_t dat = 0;
 
-            //         // Write the rest of the auxiliary channels
-            //         uint8_t i;
-            //         for (i = 0; i < crtpCppmPacket->hdr.numAuxChannels; i++) {
-            //             channelData[i + 4] = crtpCppmPacket->channelAux[i];
-            //         }
-            //     }
-            //     rcFrameComplete = true;
-            //     break;
-            // default:
-            //     // Unsupported port - do nothing
-            //     break;
-
-}
 
 // Receive ISR callback
 static void dataReceive(uint16_t c, void *data) //Это -- чистый коллбэк, он используется при создании порта (см. ниже) и вызывается, когда поступают данные
 {
     UNUSED(data);
-    
+
     //Окей, НСНМ нам поступил байт c, что с ним делать:
 
-       
+    cmd = (c >> 8);
+    dat = (c & 0b0000000011111111);
+
+    switch(cmd)
+    {
+      case 0b00100010:  
+        rxState = recv_cmd;
+        current_cmd = ch_set;
+        break;
+
+      default:
+        //We've recieved strange command
+        rxState = error;
+        break;
+    }
+
+
+
 }
 
 static uint8_t frameStatus(rxRuntimeConfig_t *rxRuntimeConfig)
@@ -156,4 +156,3 @@ bool targetCustomSerialRxInit(const rxConfig_t *rxConfig, rxRuntimeConfig_t *rxR
 
     return serialPort != NULL;
 }
-
