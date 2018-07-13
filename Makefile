@@ -16,13 +16,15 @@
 #
 
 # The target to build, see VALID_TARGETS below
-TARGET    ?= BETAFLIGHTF3
+TARGET    ?= XELOND405
 
 # Compile-time options
-OPTIONS   ?=
+OPTIONS   ?= Ofast
 
 # compile for OpenPilot BootLoader support
 OPBL      ?= no
+
+V ?= 1
 
 # Debugger optons:
 #   empty           - ordinary build with all optimizations enabled
@@ -115,7 +117,7 @@ LD_FLAGS         :=
 # Default Tool options - can be overridden in {mcu}.mk files.
 #
 ifeq ($(DEBUG),GDB)
-OPTIMISE_DEFAULT      := -Og
+OPTIMISE_DEFAULT      := -Ofast
 
 LTO_FLAGS             := $(OPTIMISE_DEFAULT)
 DEBUG_FLAGS            = -ggdb3 -DDEBUG
@@ -124,9 +126,10 @@ ifeq ($(DEBUG),INFO)
 DEBUG_FLAGS            = -ggdb3
 endif
 OPTIMISATION_BASE     := -flto -fuse-linker-plugin -ffast-math
-OPTIMISE_DEFAULT      := -O2
+OPTIMISE_DEFAULT      := -Ofast
 OPTIMISE_SPEED        := -Ofast
-OPTIMISE_SIZE         := -Os
+# OPTIMISE_SIZE         := -Os
+OPTIMISE_SIZE         := -Ofast
 
 LTO_FLAGS             := $(OPTIMISATION_BASE) $(OPTIMISE_SPEED)
 endif
