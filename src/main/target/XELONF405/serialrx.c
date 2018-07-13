@@ -40,9 +40,26 @@ static uint32_t channelData[SUPPORTED_CHANNEL_COUNT];
 static bool rcFrameComplete = false;
 
 
-//
+
+#ifndef UART_MYPORT_RX_BAUDRATE
+    #define UART_MYPORT_RX_BAUDRATE (115200)   //Скорость
+    #warning "!!!FOR MYPROTO MPORT: UART baudrate ISN'T set in target.h of selected platform, setting it to 115200!!!"
+#endif
 
 
+
+typedef enum
+{
+    stperr,
+    start1,
+    start2,
+    getlen,
+    getcmd,
+    getval
+} rxProtoState;
+
+
+static rxProtoState rxState;
 
 static void routeIncommingPacket() //syslinkPacket_t* slp)
 {
@@ -77,10 +94,10 @@ static void routeIncommingPacket() //syslinkPacket_t* slp)
 static void dataReceive(uint16_t c, void *data) //Это -- чистый коллбэк, он используется при создании порта (см. ниже) и вызывается, когда поступают данные
 {
     UNUSED(data);
-
-    channelData[0] = c;
-
     
+    //Окей, НСНМ нам поступил байт c, что с ним делать:
+
+       
 }
 
 static uint8_t frameStatus(rxRuntimeConfig_t *rxRuntimeConfig)
@@ -121,18 +138,21 @@ bool targetCustomSerialRxInit(const rxConfig_t *rxConfig, rxRuntimeConfig_t *rxR
     }
 
     rxRuntimeConfig->channelCount = SUPPORTED_CHANNEL_COUNT;
-    rxRuntimeConfig->rxRefreshRate = 20000; // Value taken from rx_spi.c (NRF24 is being used downstream)
+    rxRuntimeConfig->rxRefreshRate = UART_MYPORT_RX_BAUDRATE; // 20000 -- Value taken from rx_spi.c (NRF24 is being used downstream)
     rxRuntimeConfig->rcReadRawFn = readRawRC;
     rxRuntimeConfig->rcFrameStatusFn = frameStatus;
 
     serialPort = openSerialPort(portConfig->identifier,
         FUNCTION_RX_SERIAL,
-        dataReceive,
+        dataReceive,    //Вот эту функцию будут вызывать при поступлении нового байта
         NULL,
-        115200,
+        UART_MYPORT_RX_BAUDRATE,
         MODE_RX,
         SERIAL_NOT_INVERTED | SERIAL_STOPBITS_1 | SERIAL_PARITY_NO
         );
+
+
+    rxState = (serialPort != NULL) ? start1 : stperr;
 
     return serialPort != NULL;
 }
