@@ -1,0 +1,14 @@
+{
+	"folders": [
+		{
+			"path": "."
+		}
+	],
+	"settings": {
+		"files.associations": {
+			"iosfwd": "c",
+			"xlocbuf": "c",
+			"timer.h": "c"
+		}
+	}
+}
