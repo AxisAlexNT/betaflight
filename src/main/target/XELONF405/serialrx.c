@@ -51,17 +51,19 @@ static bool rcFrameComplete = false;
 typedef enum
 {
     none,
+    started,
     recv_cmd,
     error
 } rxProtoState;
 
 typedef enum
 {
-    ch_set,
-    get_len,
-    data_byte,
-    fin_even_byte,
-    fin_odd_byte
+    ch_set            =   0b00100010,     // 00100010 <Channel Number> -- Indicates that we will be changing channel value
+    get_len           =   0b00110011,     // 00110011 <N> -- Indicates that number of N bytes will be transfered
+    data_byte_even_n  =   0b10001000,     // 10001000 <D> -- A part of big number is sent, this part should contain even number of 'one's (like 1010)
+    data_byte_odd_n   =   0b10011001,     // 10011001 <D> -- A part of big number is sent, this part should contain odd number of 'one's (like 10101)
+    data_byte         =   0b11001100,     // 11001100 <B> -- Just recieve a byte B
+    fin_byte          =   0b11011101      // 11011101 XXXXXXXX -- Все байты числа переданы
 } command_types;
 
 
@@ -85,7 +87,7 @@ static void dataReceive(uint16_t c, void *data) //Это -- чистый кол�
 
     switch(cmd)
     {
-      case 0b00100010:  
+      case ch_set:
         rxState = recv_cmd;
         current_cmd = ch_set;
         break;
