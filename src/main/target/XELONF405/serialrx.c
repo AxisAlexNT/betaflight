@@ -51,6 +51,7 @@ static bool rcFrameComplete = false;
 typedef enum
 {
     none,
+    wait_for_start2,
     started,
     recv_cmd,
     error
@@ -58,6 +59,8 @@ typedef enum
 
 typedef enum
 {
+    start1            =   0b10111011,     //
+    start2            =   0b11101110,     //
     ch_set            =   0b00100010,     // 00100010 <Channel Number> -- Indicates that we will be changing channel value
     get_len           =   0b00110011,     // 00110011 <N> -- Indicates that number of N bytes will be transfered
     data_byte_even_n  =   0b10001000,     // 10001000 <D> -- A part of big number is sent, this part should contain even number of 'one's (like 1010)
@@ -85,20 +88,50 @@ static void dataReceive(uint16_t c, void *data) //Это -- чистый кол�
     cmd = (c >> 8);
     dat = (c & 0b0000000011111111);
 
-    switch(cmd)
-    {
-      case ch_set:
-        rxState = recv_cmd;
-        current_cmd = ch_set;
-        break;
 
-      default:
-        //We've recieved strange command
-        rxState = error;
-        break;
+    if ((rxState == none) || (rxState == error))
+    {
+      if (cmd == start1)
+      {
+        rxState = wait_for_start2;
+      }
     }
 
 
+    if (rxState == wait_for_start2)
+    {
+      if (cmd == start2)
+      {
+        rxState = started;
+        rcFrameComplete = true;
+      }else{
+        rxState = error;
+      }
+    }
+
+
+    if (rxState == started)
+    {
+      switch(cmd)
+      {
+        case ch_set:
+          rxState = recv_cmd;
+          current_cmd = ch_set;
+          rcFrameComplete = false;
+          break;
+
+        default:
+          //We've recieved strange command
+          rxState = error;
+          break;
+      }
+    }
+
+
+    if (rxState == recv_cmd)
+    {
+      
+    }
 
 }
 
@@ -154,7 +187,7 @@ bool targetCustomSerialRxInit(const rxConfig_t *rxConfig, rxRuntimeConfig_t *rxR
         );
 
 
-    rxState = (serialPort != NULL) ? start1 : stperr;
+    rxState = (serialPort != NULL) ? none : error;
 
     return serialPort != NULL;
 }
