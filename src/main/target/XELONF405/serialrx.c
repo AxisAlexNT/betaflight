@@ -122,8 +122,8 @@ static void dataReceive(uint16_t c, void *data) //Это -- чистый кол�
       }
     }else if (rxState == recv_cmd){
         switch (current_cmd) {
-            case set_ch:
 
+          case ch_set:
             switch (cmd)
             {
                 case get_len:
