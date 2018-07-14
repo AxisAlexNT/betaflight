@@ -39,6 +39,8 @@ static serialPort_t *serialPort;
 static uint32_t channelData[SUPPORTED_CHANNEL_COUNT];
 static bool rcFrameComplete = false;
 
+static uint32_t readbuffer[8] = { 0 };
+static uint32_t ch_n, cnt, iter, tmp, cur_d, tm_ch = 0;
 
 
 #ifndef UART_MYPORT_RX_BAUDRATE
@@ -95,11 +97,7 @@ static void dataReceive(uint16_t c, void *data) //Это -- чистый кол�
       {
         rxState = wait_for_start2;
       }
-    }
-
-
-    if (rxState == wait_for_start2)
-    {
+    }else if (rxState == wait_for_start2){
       if (cmd == start2)
       {
         rxState = started;
@@ -107,16 +105,13 @@ static void dataReceive(uint16_t c, void *data) //Это -- чистый кол�
       }else{
         rxState = error;
       }
-    }
-
-
-    if (rxState == started)
-    {
+    }else if (rxState == started){
       switch(cmd)
       {
         case ch_set:
           rxState = recv_cmd;
           current_cmd = ch_set;
+          ch_n = dat;
           rcFrameComplete = false;
           break;
 
@@ -125,12 +120,81 @@ static void dataReceive(uint16_t c, void *data) //Это -- чистый кол�
           rxState = error;
           break;
       }
-    }
+    }else if (rxState == recv_cmd){
+        switch (current_cmd) {
+            case set_ch:
+
+            switch (cmd)
+            {
+                case get_len:
+                    iter = 0;
+                    cnt = dat;
+                    break;
+
+                case data_byte_even_n:
+                    if (iter < cnt)
+                    {
+                        cur_d = 0;
+                        tmp = dat;
+
+                        while (tmp > 0)
+                        {
+                            cur_d += tmp & 0b1;
+                            tmp = (tmp >> 1);
+                        }
+
+                        if (cur_d & 0b1 == 0) //means that cur_d is even as the last bit is zero
+                        {
+                            tm_ch = (tm_ch << 8) | dat;
+                        }else{
+                            rxState = error;
+                        }
+
+                    }else{
+                        rxState = error;
+                    }
+
+                break;
 
 
-    if (rxState == recv_cmd)
-    {
-      
+            case data_byte_odd_n:
+                  if (iter < cnt)
+                  {
+                      cur_d = 0;
+                      tmp = dat;
+
+                      while (tmp > 0)
+                      {
+                          cur_d += tmp & 0b1;
+                          tmp = (tmp >> 1);
+                      }
+
+                      if (cur_d & 0b1 == 1) //means that cur_d is even as the last bit is zero
+                      {
+                          tm_ch = (tm_ch << 8) | dat;
+                      }else{
+                          rxState = error;
+                      }
+
+                  }else{
+                      rxState = error;
+                  }
+
+                  break;
+
+            case fin_byte:
+                channelData[ch_n] = tm_ch;
+                tm_ch = 0;
+                rcFrameComplete = true;
+
+            default:
+                break;
+            }
+          break;
+
+        default:
+          break;
+      }
     }
 
 }
