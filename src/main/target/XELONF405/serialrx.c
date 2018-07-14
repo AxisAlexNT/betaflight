@@ -37,7 +37,7 @@ static serialPort_t *serialPort;
 
 #define SUPPORTED_CHANNEL_COUNT (4 + 10)
 static uint32_t channelData[SUPPORTED_CHANNEL_COUNT];
-static bool rcFrameComplete = false;
+static bool rcFrameComplete = true;
 
 static uint32_t readbuffer[8] = { 0 };
 static uint32_t ch_n, cnt, iter, tmp, cur_d, tm_ch = 0;
@@ -68,7 +68,8 @@ typedef enum
     data_byte_even_n  =   0b10001000,     // 10001000 <D> -- A part of big number is sent, this part should contain even number of 'one's (like 1010)
     data_byte_odd_n   =   0b10011001,     // 10011001 <D> -- A part of big number is sent, this part should contain odd number of 'one's (like 10101)
     data_byte         =   0b11001100,     // 11001100 <B> -- Just recieve a byte B
-    fin_byte          =   0b11011101      // 11011101 XXXXXXXX -- Все байты числа переданы
+    fin_byte          =   0b11011101,      // 11011101 XXXXXXXX -- Все байты числа переданы
+    none_cmd
 } command_types;
 
 
@@ -186,6 +187,8 @@ static void dataReceive(uint16_t c, void *data) //Это -- чистый кол�
                 channelData[ch_n] = tm_ch;
                 tm_ch = 0;
                 rcFrameComplete = true;
+                current_cmd = none_cmd;
+                rxState = none;
 
             default:
                 break;
@@ -218,6 +221,8 @@ static uint16_t readRawRC(const rxRuntimeConfig_t *rxRuntimeConfig, uint8_t chan
     if (chan >= rxRuntimeConfig->channelCount) {
         return 0;
     }
+    channelData[1] = 1234;
+    channelData[0] = 1100;
     return channelData[chan];
 }
 
