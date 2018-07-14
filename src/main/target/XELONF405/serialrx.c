@@ -34,10 +34,11 @@
 
 static rxRuntimeConfig_t *rxRuntimeConfigPtr;
 static serialPort_t *serialPort;
+static serialPort_t *debugSerialPort;
 
 #define SUPPORTED_CHANNEL_COUNT (4 + 10)
 static uint32_t channelData[SUPPORTED_CHANNEL_COUNT];
-static bool rcFrameComplete = true;
+static bool rcFrameComplete = false;
 
 static uint32_t readbuffer[8] = { 0 };
 static uint32_t ch_n, cnt, iter, tmp, cur_d, tm_ch = 0;
@@ -68,8 +69,7 @@ typedef enum
     data_byte_even_n  =   0b10001000,     // 10001000 <D> -- A part of big number is sent, this part should contain even number of 'one's (like 1010)
     data_byte_odd_n   =   0b10011001,     // 10011001 <D> -- A part of big number is sent, this part should contain odd number of 'one's (like 10101)
     data_byte         =   0b11001100,     // 11001100 <B> -- Just recieve a byte B
-    fin_byte          =   0b11011101,      // 11011101 XXXXXXXX -- Все байты числа переданы
-    none_cmd
+    fin_byte          =   0b11011101      // 11011101 XXXXXXXX -- Все байты числа переданы
 } command_types;
 
 
@@ -85,6 +85,11 @@ static uint8_t dat = 0;
 static void dataReceive(uint16_t c, void *data) //Это -- чистый коллбэк, он используется при создании порта (см. ниже) и вызывается, когда поступают данные
 {
     UNUSED(data);
+
+    serialPrint(debugSerialPort, 'NEW DATA');
+
+    serialWrite(debugSerialPort, c);
+
 
     //Окей, НСНМ нам поступил байт c, что с ним делать:
 
@@ -123,8 +128,8 @@ static void dataReceive(uint16_t c, void *data) //Это -- чистый кол�
       }
     }else if (rxState == recv_cmd){
         switch (current_cmd) {
+            case set_ch:
 
-          case ch_set:
             switch (cmd)
             {
                 case get_len:
@@ -187,8 +192,6 @@ static void dataReceive(uint16_t c, void *data) //Это -- чистый кол�
                 channelData[ch_n] = tm_ch;
                 tm_ch = 0;
                 rcFrameComplete = true;
-                current_cmd = none_cmd;
-                rxState = none;
 
             default:
                 break;
@@ -221,10 +224,11 @@ static uint16_t readRawRC(const rxRuntimeConfig_t *rxRuntimeConfig, uint8_t chan
     if (chan >= rxRuntimeConfig->channelCount) {
         return 0;
     }
-    channelData[1] = 1234;
-    channelData[0] = 1100;
     return channelData[chan];
 }
+
+
+static void tdcf(uint16_t c, void *data) {}
 
 
 bool targetCustomSerialRxInit(const rxConfig_t *rxConfig, rxRuntimeConfig_t *rxRuntimeConfig)
@@ -240,6 +244,18 @@ bool targetCustomSerialRxInit(const rxConfig_t *rxConfig, rxRuntimeConfig_t *rxR
     if (!portConfig) {
         return false;
     }
+
+
+
+    debugSerialPort = openSerialPort(DEBUG_SERIAL_PORT,
+        FUNCTION_NONE,
+        tdcf,
+        BAUD_115200,
+        MODE_TX,
+        SERIAL_NOT_INVERTED | SERIAL_STOPBITS_1 | SERIAL_PARITY_NO
+    );
+
+    serialPrint(debugSerialPort, 'DEBUG PORT OPENED!');
 
     rxRuntimeConfig->channelCount = SUPPORTED_CHANNEL_COUNT;
     rxRuntimeConfig->rxRefreshRate = UART_MYPORT_RX_BAUDRATE; // 20000 -- Value taken from rx_spi.c (NRF24 is being used downstream)
@@ -258,5 +274,6 @@ bool targetCustomSerialRxInit(const rxConfig_t *rxConfig, rxRuntimeConfig_t *rxR
 
     rxState = (serialPort != NULL) ? none : error;
 
-    return serialPort != NULL;
+    //return serialPort != NULL;
+    return true;
 }
