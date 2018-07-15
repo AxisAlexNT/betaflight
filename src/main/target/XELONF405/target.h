@@ -29,6 +29,7 @@
 
 #pragma once
 
+#define USE_DEBUG_RXTX_PRINT
 
 #define TARGET_BOARD_IDENTIFIER "MKF4"
 #define USBD_PRODUCT_STRING  "MatekF4"

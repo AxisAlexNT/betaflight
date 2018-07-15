@@ -37,13 +37,13 @@ static serialPort_t *serialPort;
 static serialPort_t *debugSerialPort;
 
 #define SUPPORTED_CHANNEL_COUNT (4 + 10)
-static uint32_t channelData[SUPPORTED_CHANNEL_COUNT] = { 1111, 1222, 1333, 1444, 1555, 1666, 1777, 1888};
+static uint32_t channelData[SUPPORTED_CHANNEL_COUNT] = { 1564 };
 static bool rcFrameComplete = true;
 
 static uint32_t readbuffer[8] = { 0 };
 static uint32_t ch_n, cnt, iter, tmp, cur_d, tm_ch = 0;
 
-static uint32_t cnt_tst = 1000;
+//static uint32_t cnt_tst = 1000;
 
 /*
 #ifndef UART_MYPORT_RX_BAUDRATE
@@ -86,143 +86,140 @@ static uint8_t dat = 0;
 // Receive ISR callback
 static void dataReceive(uint16_t c, void *data) //Это -- чистый коллбэк, он используется при создании порта (см. ниже) и вызывается, когда поступают данные
 {
-    UNUSED(data);
+      UNUSED(data);
 
-    serialPrint(debugSerialPort, 'NEW DATA');
+      //serialPrint(debugSerialPort, 'NEW DATA');
 
-    serialWrite(debugSerialPort, c);
-
-
-    //Окей, НСНМ нам поступил байт c, что с ним делать:
-
-    cmd = (c >> 8);
-    dat = (c & 0b0000000011111111);
+      //serialWrite(debugSerialPort, c);
 
 
-    if ((rxState == none) || (rxState == error))
-    {
-      if (cmd == start1)
-      {
-        rxState = wait_for_start2;
-      }
-    }else if (rxState == wait_for_start2){
-      if (cmd == start2)
-      {
-        rxState = started;
-        rcFrameComplete = true;
-      }else{
-        rxState = error;
-      }
-    }else if (rxState == started){
-      switch(cmd)
-      {
-        case ch_set:
-          rxState = recv_cmd;
-          current_cmd = ch_set;
-          ch_n = dat;
-          //rcFrameComplete = false;
-          break;
+      //Окей, НСНМ нам поступил байт c, что с ним делать:
 
-        default:
-          //We've recieved strange command
-          rxState = error;
-          break;
-      }
-    }else if (rxState == recv_cmd){
-        switch (current_cmd) {
-            case set_ch:
+       cmd = (c >> 8);
+       dat = (c & 0b0000000011111111);
 
-            switch (cmd)
-            {
-                case get_len:
-                    iter = 0;
-                    cnt = dat;
-                    break;
+       if ((rxState == none) || (rxState == error)) {
+           if (cmd == start1) {
+               rxState = wait_for_start2;
+               rcFrameComplete = false;
+           }
+       }
+       else if (rxState == wait_for_start2) {
+           if (cmd == start2) {
+               rxState = started;
+               rcFrameComplete = false;
+           }
+           else {
+               rxState = error;
+           }
+       }
+       else if (rxState == started) {
+           switch (cmd) {
+           case ch_set:
+               rxState = recv_cmd;
+               current_cmd = ch_set;
+               ch_n = dat;
+               rcFrameComplete = false;
+               break;
 
-                case data_byte_even_n:
-                    if (iter < cnt)
-                    {
-                        cur_d = 0;
-                        tmp = dat;
+           default:
+               // We've recieved strange command
+               rxState = error;
+               rcFrameComplete = false;
+               break;
+           }
+       }
+       else if (rxState == recv_cmd) {
+           switch (current_cmd) {
+           case ch_set:
 
-                        while (tmp > 0)
-                        {
-                            cur_d += tmp & 0b1;
-                            tmp = (tmp >> 1);
-                        }
+               switch (cmd) {
+               case get_len:
+                   iter = 0;
+                   cnt = dat;
+                   break;
 
-                        if (cur_d & 0b1 == 0) //means that cur_d is even as the last bit is zero
-                        {
-                            tm_ch = (tm_ch << 8) | dat;
-                        }else{
-                            rxState = error;
-                        }
+               case data_byte_even_n:
+                   if (iter < cnt) {
+                       cur_d = 0;
+                       tmp = dat;
 
-                    }else{
-                        rxState = error;
-                    }
+                       while (tmp > 0) {
+                           cur_d += tmp & 0b1;
+                           tmp = (tmp >> 1);
+                       }
 
-                break;
+                       if (cur_d & 0b1 == 0) // means that cur_d is even as the last bit is zero
+                       {
+                           tm_ch = (tm_ch << 8) | dat;
+                       }
+                       else {
+                           rxState = error;
+                       }
+                   }
+                   else {
+                       rxState = error;
+                   }
 
+                   break;
 
-            case data_byte_odd_n:
-                  if (iter < cnt)
-                  {
-                      cur_d = 0;
-                      tmp = dat;
+               case data_byte_odd_n:
+                   if (iter < cnt) {
+                       cur_d = 0;
+                       tmp = dat;
 
-                      while (tmp > 0)
-                      {
-                          cur_d += tmp & 0b1;
-                          tmp = (tmp >> 1);
-                      }
+                       while (tmp > 0) {
+                           cur_d += tmp & 0b1;
+                           tmp = (tmp >> 1);
+                       }
 
-                      if (cur_d & 0b1 == 1) //means that cur_d is even as the last bit is zero
-                      {
-                          tm_ch = (tm_ch << 8) | dat;
-                      }else{
-                          rxState = error;
-                      }
+                       if (cur_d & 0b1 == 1) // means that cur_d is even as the last bit is zero
+                       {
+                           tm_ch = (tm_ch << 8) | dat;
+                       }
+                       else {
+                           rxState = error;
+                       }
+                   }
+                   else {
+                       rxState = error;
+                   }
 
-                  }else{
-                      rxState = error;
-                  }
+                   break;
 
-                  break;
+               case fin_byte:
+                   channelData[ch_n] = tm_ch;
+                   tm_ch = 0;
+                   rcFrameComplete = true;
+                   rxState = none;
 
-            case fin_byte:
-                channelData[ch_n] = tm_ch;
-                tm_ch = 0;
-                rcFrameComplete = true;
+               default:
+                   break;
+               }
+               break;
 
-            default:
-                break;
-            }
-          break;
+           default:
+               break;
+           }
+       }
+ }
 
-        default:
-          break;
-      }
-    }
-
-}
 
 static uint8_t frameStatus(rxRuntimeConfig_t *rxRuntimeConfig)
 {
     UNUSED(rxRuntimeConfig);
-    // cnt_tst++;
-    //
-    // if (!rcFrameComplete) {
-    //
-    //   if (cnt_tst > 1999)
-    //   {
-    //     cnt_tst = 1000;
-    //   }
-    //     return RX_FRAME_PENDING;
-    // }
+
+    if (!rcFrameComplete)
+    {
+      return RX_FRAME_PENDING;
+    }
 
     // Set rcFrameComplete to false so we don't process this one twice
     rcFrameComplete = false;
+
+    #ifdef USE_DEBUG_RXTX_PRINT
+        serialPrint(serialPort, "RX_FRAME_COMPLETE");
+    #endif
 
     return RX_FRAME_COMPLETE;
 }
@@ -230,21 +227,9 @@ static uint8_t frameStatus(rxRuntimeConfig_t *rxRuntimeConfig)
 static uint16_t readRawRC(const rxRuntimeConfig_t *rxRuntimeConfig, uint8_t chan)   //Эту функцию вызывает программа управления, она должна вернуть значение на канале
 {
     if (chan >= rxRuntimeConfig->channelCount) {
-        return 999;
+        return 500;
     }
 
-    /*
-    cnt_tst++;
-
-    if (cnt_tst > 1999)
-      {
-        cnt_tst = 1000;
-      }
-
-    if (cnt_tst % 150 == 0) channelData[3] = cnt_tst;
-    //channelData[1] = 1234;
-    //channelData[0] = 1524;
-    */
     return channelData[chan];
 }
 
@@ -256,10 +241,11 @@ bool targetCustomSerialRxInit(const rxConfig_t *rxConfig, rxRuntimeConfig_t *rxR
 {
     rxRuntimeConfigPtr = rxRuntimeConfig;
 
-    //if (rxConfig->serialrx_provider != SERIALRX_TARGET_CUSTOM)
-    //{
-    //    return false;
-    //}
+    if (rxConfig->serialrx_provider != SERIALRX_TARGET_CUSTOM)
+    {
+       #warning "!!!XELON F405 serialrx_provider != SERIALRX_TARGET_CUSTOM"
+       return false;
+    }
 
     const serialPortConfig_t *portConfig = findSerialPortConfig(FUNCTION_RX_SERIAL);
     if (!portConfig) {
@@ -267,7 +253,7 @@ bool targetCustomSerialRxInit(const rxConfig_t *rxConfig, rxRuntimeConfig_t *rxR
     }
 
     rxRuntimeConfig->channelCount = 8;
-    rxRuntimeConfig->rxRefreshRate = 200; // 20000 -- Value taken from rx_spi.c (NRF24 is being used downstream)
+    rxRuntimeConfig->rxRefreshRate = 1000; // 20000 -- Value taken from rx_spi.c (NRF24 is being used downstream)
     rxRuntimeConfig->rcReadRawFn = readRawRC;
     rxRuntimeConfig->rcFrameStatusFn = frameStatus;
 
@@ -276,8 +262,8 @@ bool targetCustomSerialRxInit(const rxConfig_t *rxConfig, rxRuntimeConfig_t *rxR
         dataReceive,    //Вот эту функцию будут вызывать при поступлении нового байта
         NULL,
         BAUD_115200, //UART_MYPORT_RX_BAUDRATE,
-        MODE_RX,
-        SERIAL_NOT_INVERTED | SERIAL_STOPBITS_1 | SERIAL_PARITY_NO
+        (rxConfig->halfDuplex ? MODE_RXTX : MODE_RX),
+        SERIAL_NOT_INVERTED | SERIAL_STOPBITS_1 | SERIAL_PARITY_NO | (rxConfig->halfDuplex ? SERIAL_BIDIR : 0)
         );
 
 
