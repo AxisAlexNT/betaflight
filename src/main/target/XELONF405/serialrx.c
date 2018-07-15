@@ -36,18 +36,20 @@ static rxRuntimeConfig_t *rxRuntimeConfigPtr;
 static serialPort_t *serialPort;
 
 #define SUPPORTED_CHANNEL_COUNT (4 + 10)
-static uint32_t channelData[SUPPORTED_CHANNEL_COUNT];
+static uint32_t channelData[SUPPORTED_CHANNEL_COUNT] = { 1111, 1222, 1333, 1444, 1555, 1666, 1777, 1888};
 static bool rcFrameComplete = true;
 
 static uint32_t readbuffer[8] = { 0 };
 static uint32_t ch_n, cnt, iter, tmp, cur_d, tm_ch = 0;
 
+static uint32_t cnt_tst = 1000;
 
+/*
 #ifndef UART_MYPORT_RX_BAUDRATE
-    #define UART_MYPORT_RX_BAUDRATE (115200)   //Скорость
+    #define UART_MYPORT_RX_BAUDRATE (BAUD_115200)   //Скорость
     #warning "!!!FOR MYPROTO MPORT: UART baudrate ISN'T set in target.h of selected platform, setting it to 115200!!!"
 #endif
-
+*/
 
 
 typedef enum
@@ -113,7 +115,7 @@ static void dataReceive(uint16_t c, void *data) //Это -- чистый кол�
           rxState = recv_cmd;
           current_cmd = ch_set;
           ch_n = dat;
-          rcFrameComplete = false;
+          //rcFrameComplete = false;
           break;
 
         default:
@@ -205,10 +207,16 @@ static void dataReceive(uint16_t c, void *data) //Это -- чистый кол�
 static uint8_t frameStatus(rxRuntimeConfig_t *rxRuntimeConfig)
 {
     UNUSED(rxRuntimeConfig);
-
-    if (!rcFrameComplete) {
-        return RX_FRAME_PENDING;
-    }
+    // cnt_tst++;
+    //
+    // if (!rcFrameComplete) {
+    //
+    //   if (cnt_tst > 1999)
+    //   {
+    //     cnt_tst = 1000;
+    //   }
+    //     return RX_FRAME_PENDING;
+    // }
 
     // Set rcFrameComplete to false so we don't process this one twice
     rcFrameComplete = false;
@@ -219,10 +227,19 @@ static uint8_t frameStatus(rxRuntimeConfig_t *rxRuntimeConfig)
 static uint16_t readRawRC(const rxRuntimeConfig_t *rxRuntimeConfig, uint8_t chan)   //Эту функцию вызывает программа управления, она должна вернуть значение на канале
 {
     if (chan >= rxRuntimeConfig->channelCount) {
-        return 0;
+        return 999;
     }
-    channelData[1] = 1234;
-    channelData[0] = 1100;
+
+    cnt_tst++;
+
+    if (cnt_tst > 1999)
+      {
+        cnt_tst = 1000;
+      }
+
+    if (cnt_tst % 150 == 0) channelData[3] = cnt_tst;
+    //channelData[1] = 1234;
+    //channelData[0] = 1524;
     return channelData[chan];
 }
 
@@ -231,18 +248,18 @@ bool targetCustomSerialRxInit(const rxConfig_t *rxConfig, rxRuntimeConfig_t *rxR
 {
     rxRuntimeConfigPtr = rxRuntimeConfig;
 
-    if (rxConfig->serialrx_provider != SERIALRX_TARGET_CUSTOM)
-    {
-        return false;
-    }
+    //if (rxConfig->serialrx_provider != SERIALRX_TARGET_CUSTOM)
+    //{
+    //    return false;
+    //}
 
     const serialPortConfig_t *portConfig = findSerialPortConfig(FUNCTION_RX_SERIAL);
     if (!portConfig) {
-        return false;
+       return false;
     }
 
-    rxRuntimeConfig->channelCount = SUPPORTED_CHANNEL_COUNT;
-    rxRuntimeConfig->rxRefreshRate = UART_MYPORT_RX_BAUDRATE; // 20000 -- Value taken from rx_spi.c (NRF24 is being used downstream)
+    rxRuntimeConfig->channelCount = 8;
+    rxRuntimeConfig->rxRefreshRate = 20000; // 20000 -- Value taken from rx_spi.c (NRF24 is being used downstream)
     rxRuntimeConfig->rcReadRawFn = readRawRC;
     rxRuntimeConfig->rcFrameStatusFn = frameStatus;
 
@@ -250,7 +267,7 @@ bool targetCustomSerialRxInit(const rxConfig_t *rxConfig, rxRuntimeConfig_t *rxR
         FUNCTION_RX_SERIAL,
         dataReceive,    //Вот эту функцию будут вызывать при поступлении нового байта
         NULL,
-        UART_MYPORT_RX_BAUDRATE,
+        BAUD_115200, //UART_MYPORT_RX_BAUDRATE,
         MODE_RX,
         SERIAL_NOT_INVERTED | SERIAL_STOPBITS_1 | SERIAL_PARITY_NO
         );
@@ -258,5 +275,8 @@ bool targetCustomSerialRxInit(const rxConfig_t *rxConfig, rxRuntimeConfig_t *rxR
 
     rxState = (serialPort != NULL) ? none : error;
 
+    //rxState = none;
+
     return serialPort != NULL;
+    //return true;
 }
