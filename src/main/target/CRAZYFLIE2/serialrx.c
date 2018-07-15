@@ -240,4 +240,3 @@ bool targetCustomSerialRxInit(const rxConfig_t *rxConfig, rxRuntimeConfig_t *rxR
 
     return serialPort != NULL;
 }
-
