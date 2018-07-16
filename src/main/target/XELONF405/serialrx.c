@@ -34,11 +34,11 @@
 
 static rxRuntimeConfig_t *rxRuntimeConfigPtr;
 static serialPort_t *serialPort;
-static serialPort_t *debugSerialPort;
+//static serialPort_t *debugSerialPort;
 
-#define SUPPORTED_CHANNEL_COUNT (4 + 10)
-static uint32_t channelData[SUPPORTED_CHANNEL_COUNT] = { 1564 };
-static bool rcFrameComplete = true;
+#define SUPPORTED_CHANNEL_COUNT (8)
+static uint32_t channelData[SUPPORTED_CHANNEL_COUNT];
+static bool rcFrameComplete = false;
 
 static uint32_t readbuffer[8] = { 0 };
 static uint32_t ch_n, cnt, iter, tmp, cur_d, tm_ch = 0;
@@ -97,19 +97,25 @@ static void dataReceive(uint16_t cr, void *data) //Это -- чистый кол
 
       //Окей, НСНМ нам поступил байт c, что с ним делать:
 
-       cmd = (c >> 4);
-       dat = (c & 0b00001111);
+
+       //cmd = (c >> 4);
+       //dat = (c & 0b00001111);
+
+       cmd = c & 0b11110000; //~(c & 0b00001111) - 240;
+       dat = c & 0b00001111; //((~c) >> 4);
 
        if ((rxState == none) || (rxState == error)) {
            if (cmd == start1) {
                rxState = wait_for_start2;
-               rcFrameComplete = false;
+               rcFrameComplete = true;
+               channelData[6] = 1750;
            }
        }
        else if (rxState == wait_for_start2) {
            if (cmd == start2) {
                rxState = started;
-               rcFrameComplete = false;
+               rcFrameComplete = true;
+               channelData[6] = 1800;
            }
            else {
                rxState = error;
@@ -121,13 +127,14 @@ static void dataReceive(uint16_t cr, void *data) //Это -- чистый кол
                rxState = recv_cmd;
                current_cmd = ch_set;
                ch_n = dat;
-               rcFrameComplete = false;
+               rcFrameComplete = true;
+               channelData[6] = 1850;
                break;
 
            default:
                // We've recieved strange command
                rxState = error;
-               rcFrameComplete = false;
+               rcFrameComplete = true;
                break;
            }
        }
@@ -139,6 +146,7 @@ static void dataReceive(uint16_t cr, void *data) //Это -- чистый кол
                case get_len:
                    iter = 0;
                    cnt = dat;
+                   channelData[6] = 1900;
                    break;
 
                case data_byte_even_n:
@@ -151,7 +159,7 @@ static void dataReceive(uint16_t cr, void *data) //Это -- чистый кол
                            tmp = (tmp >> 1);
                        }
 
-                       if (cur_d & 0b1 == 0) // means that cur_d is even as the last bit is zero
+                       if ((cur_d & 0b1) == 0) // means that cur_d is even as the last bit is zero
                        {
                            tm_ch = (tm_ch << 4) | dat;
                        }
@@ -162,6 +170,8 @@ static void dataReceive(uint16_t cr, void *data) //Это -- чистый кол
                    else {
                        rxState = error;
                    }
+
+                   channelData[6] = 1950;
 
                    break;
 
@@ -175,7 +185,7 @@ static void dataReceive(uint16_t cr, void *data) //Это -- чистый кол
                            tmp = (tmp >> 1);
                        }
 
-                       if (cur_d & 0b1 == 1) // means that cur_d is even as the last bit is zero
+                       if ((cur_d & 0b1) == 1) // means that cur_d is even as the last bit is zero
                        {
                            tm_ch = (tm_ch << 4) | dat;
                        }
@@ -187,6 +197,8 @@ static void dataReceive(uint16_t cr, void *data) //Это -- чистый кол
                        rxState = error;
                    }
 
+                   channelData[6] = 2000;
+
                    break;
 
                case fin_byte:
@@ -194,6 +206,8 @@ static void dataReceive(uint16_t cr, void *data) //Это -- чистый кол
                    tm_ch = 0;
                    rcFrameComplete = true;
                    rxState = none;
+
+                   channelData[6] = 2050;
 
                default:
                    break;
@@ -204,6 +218,17 @@ static void dataReceive(uint16_t cr, void *data) //Это -- чистый кол
                break;
            }
        }
+
+
+
+       //channelData[c >> 6] = 1500 + (c+c/2);
+
+       channelData[5] = 1600+c;
+       channelData[6] = 1600+cmd;
+       channelData[7] = 1600+dat;
+       rcFrameComplete = true;
+
+
  }
 
 
@@ -233,14 +258,17 @@ static uint16_t readRawRC(const rxRuntimeConfig_t *rxRuntimeConfig, uint8_t chan
     }
 
     return channelData[chan];
+    //return 1789;
 }
 
 
-static void tdcf(uint16_t c, void *data) {}
+//static void tdcf(uint16_t c, void *data) {}
 
 
 bool targetCustomSerialRxInit(const rxConfig_t *rxConfig, rxRuntimeConfig_t *rxRuntimeConfig)
 {
+
+
     rxRuntimeConfigPtr = rxRuntimeConfig;
 
     if (rxConfig->serialrx_provider != SERIALRX_TARGET_CUSTOM)
@@ -255,7 +283,7 @@ bool targetCustomSerialRxInit(const rxConfig_t *rxConfig, rxRuntimeConfig_t *rxR
     }
 
     rxRuntimeConfig->channelCount = 8;
-    rxRuntimeConfig->rxRefreshRate = 1000; // 20000 -- Value taken from rx_spi.c (NRF24 is being used downstream)
+    rxRuntimeConfig->rxRefreshRate = 10000; // 20000 -- Value taken from rx_spi.c (NRF24 is being used downstream)
     rxRuntimeConfig->rcReadRawFn = readRawRC;
     rxRuntimeConfig->rcFrameStatusFn = frameStatus;
 
@@ -263,14 +291,20 @@ bool targetCustomSerialRxInit(const rxConfig_t *rxConfig, rxRuntimeConfig_t *rxR
         FUNCTION_RX_SERIAL,
         dataReceive,    //Вот эту функцию будут вызывать при поступлении нового байта
         NULL,
-        BAUD_115200, //UART_MYPORT_RX_BAUDRATE,
+        UART_MYPORT_RX_BAUDRATE,
         //(rxConfig->halfDuplex ? MODE_RXTX : MODE_RX),
         MODE_RX,
-        SERIAL_NOT_INVERTED | SERIAL_STOPBITS_1 | SERIAL_PARITY_NO // | (rxConfig->halfDuplex ? SERIAL_BIDIR : 0)
+        (rxConfig->serialrx_inverted ? SERIAL_INVERTED : 0) | (rxConfig->halfDuplex ? SERIAL_BIDIR : 0) // SERIAL_NOT_INVERTED | SERIAL_STOPBITS_1 | SERIAL_PARITY_NO | (rxConfig->halfDuplex ? SERIAL_BIDIR : 0)
         );
 
 
     rxState = (serialPort != NULL) ? none : error;
+
+    if (serialPort != NULL)
+    {
+        for (uint8_t i = 0; i<SUPPORTED_CHANNEL_COUNT; i++) channelData[i]=1600+i*i;
+    }
+
 
     //rxState = none;
 
