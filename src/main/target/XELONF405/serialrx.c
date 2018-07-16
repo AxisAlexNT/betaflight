@@ -64,14 +64,14 @@ typedef enum
 
 typedef enum
 {
-    start1            =   0b10111011,     //
-    start2            =   0b11101110,     //
-    ch_set            =   0b00100010,     // 00100010 <Channel Number> -- Indicates that we will be changing channel value
-    get_len           =   0b00110011,     // 00110011 <N> -- Indicates that number of N bytes will be transfered
-    data_byte_even_n  =   0b10001000,     // 10001000 <D> -- A part of big number is sent, this part should contain even number of 'one's (like 1010)
-    data_byte_odd_n   =   0b10011001,     // 10011001 <D> -- A part of big number is sent, this part should contain odd number of 'one's (like 10101)
-    data_byte         =   0b11001100,     // 11001100 <B> -- Just recieve a byte B
-    fin_byte          =   0b11011101      // 11011101 XXXXXXXX -- Все байты числа переданы
+    start1            =   0b1011,     //
+    start2            =   0b1110,     //
+    ch_set            =   0b0010,     // 00100010 <Channel Number> -- Indicates that we will be changing channel value
+    get_len           =   0b0011,     // 00110011 <N> -- Indicates that number of N bytes will be transfered
+    data_byte_even_n  =   0b1000,     // 10001000 <D> -- A part of big number is sent, this part should contain even number of 'one's (like 1010)
+    data_byte_odd_n   =   0b1001,     // 10011001 <D> -- A part of big number is sent, this part should contain odd number of 'one's (like 10101)
+    data_byte         =   0b1100,     // 11001100 <B> -- Just recieve a byte B
+    fin_byte          =   0b1101      // 11011101 XXXXXXXX -- Все байты числа переданы
 } command_types;
 
 
@@ -84,9 +84,11 @@ static uint8_t dat = 0;
 
 
 // Receive ISR callback
-static void dataReceive(uint16_t c, void *data) //Это -- чистый коллбэк, он используется при создании порта (см. ниже) и вызывается, когда поступают данные
+static void dataReceive(uint16_t cr, void *data) //Это -- чистый коллбэк, он используется при создании порта (см. ниже) и вызывается, когда поступают данные
 {
       UNUSED(data);
+
+      uint8_t c = (uint8_t)cr;
 
       //serialPrint(debugSerialPort, 'NEW DATA');
 
@@ -95,8 +97,8 @@ static void dataReceive(uint16_t c, void *data) //Это -- чистый кол�
 
       //Окей, НСНМ нам поступил байт c, что с ним делать:
 
-       cmd = (c >> 8);
-       dat = (c & 0b0000000011111111);
+       cmd = (c >> 4);
+       dat = (c & 0b00001111);
 
        if ((rxState == none) || (rxState == error)) {
            if (cmd == start1) {
@@ -151,7 +153,7 @@ static void dataReceive(uint16_t c, void *data) //Это -- чистый кол�
 
                        if (cur_d & 0b1 == 0) // means that cur_d is even as the last bit is zero
                        {
-                           tm_ch = (tm_ch << 8) | dat;
+                           tm_ch = (tm_ch << 4) | dat;
                        }
                        else {
                            rxState = error;
@@ -175,7 +177,7 @@ static void dataReceive(uint16_t c, void *data) //Это -- чистый кол�
 
                        if (cur_d & 0b1 == 1) // means that cur_d is even as the last bit is zero
                        {
-                           tm_ch = (tm_ch << 8) | dat;
+                           tm_ch = (tm_ch << 4) | dat;
                        }
                        else {
                            rxState = error;
@@ -262,8 +264,9 @@ bool targetCustomSerialRxInit(const rxConfig_t *rxConfig, rxRuntimeConfig_t *rxR
         dataReceive,    //Вот эту функцию будут вызывать при поступлении нового байта
         NULL,
         BAUD_115200, //UART_MYPORT_RX_BAUDRATE,
-        (rxConfig->halfDuplex ? MODE_RXTX : MODE_RX),
-        SERIAL_NOT_INVERTED | SERIAL_STOPBITS_1 | SERIAL_PARITY_NO | (rxConfig->halfDuplex ? SERIAL_BIDIR : 0)
+        //(rxConfig->halfDuplex ? MODE_RXTX : MODE_RX),
+        MODE_RX,
+        SERIAL_NOT_INVERTED | SERIAL_STOPBITS_1 | SERIAL_PARITY_NO // | (rxConfig->halfDuplex ? SERIAL_BIDIR : 0)
         );
 
 
